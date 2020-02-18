@@ -33,7 +33,7 @@ class Host:
         return True
 
     def connect_to_host(self):
-        ftp = "192.168.1.12"
+        ftp = "your-ftp-address"
         backup_script = ':global thisdate [/system clock get date]; ' \
                         ':global datetimestring ([:pick $thisdate 0 3] ."-" . [:pick $thisdate 4 6] ."-" . [:pick $thisdate 7 11]);' \
                         ':global backupfilename ([/system identity get name]."_".$datetimestring); ' \
