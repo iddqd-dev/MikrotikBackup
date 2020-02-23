@@ -20,7 +20,6 @@ class InputList:
             if check_result:
                 host.extract_host_data_from_line(line)
                 host.check_firmware_version()
-                host.check_mikrotik_name()
                 host.folder_generation()
                 connection = host.connect_to_host()
                 if connection:
