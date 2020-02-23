@@ -19,6 +19,7 @@ from timeit import default_timer as timer
 
 class Host:
     def __init__(self):
+        self.mikrotik_arch = ""
         self.mikrotik_fw = ""
         self.mikrotik_name = ""
         self.lines = None
@@ -73,6 +74,8 @@ class Host:
         except Exception as err:
             self.err = err
             return False
+        finally:
+            ssh.close()
         return True
 
     def check_firmware_version(self):
@@ -82,10 +85,15 @@ class Host:
             ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
                         look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-            stdin_, stdout_, stderr_ = ssh.exec_command(":put [system routerboard get current-firmware ]")
+            stdin_, stdout_, stderr_ = ssh.exec_command(":put [system routerboard get current-firmware ]; :put [/system resource get architecture-name]")
             stdout_.channel.recv_exit_status()
-            self.mikrotik_fw = str(stdout_.readlines())[2:-6]
-            print(self.mikrotik_fw)
+            #s = stdout_.read().splitlines()
+            s = [line.split() for line in stdout_.read().splitlines()]
+            self.mikrotik_fw = str(s[0])[2:-1]
+            self.mikrotik_arch = str(s[1])[2:-1]
+            print(self.mikrotik_fw, self.mikrotik_arch)
+            # self.mikrotik_fw = str(stdout_.readlines())[2:-6]
+            # print(self.mikrotik_fw)
         except paramiko.AuthenticationException:
             print("Authentication failed when connecting to", self.ip)
             print('Check username and password.')
@@ -99,6 +107,8 @@ class Host:
         except Exception as err:
             self.err = err
             return False
+        finally:
+            ssh.close()
         return True
 
     def folder_generation(self):
@@ -123,7 +133,7 @@ class Host:
         backup_script = ':local time [/system clock get time];' \
                         ':local thisdate [/system clock get date]; ' \
                         ':local datetimestring ([:pick $thisdate 0 3] ."-" . [:pick $thisdate 4 6] ."-" . [:pick $thisdate 7 11]);' \
-                        ':local backupfilename ([/system identity get name]."_'+ self.mikrotik_fw +'_".$datetimestring."_".$time); ' \
+                        ':local backupfilename ([/system identity get name]."_'+ self.mikrotik_fw + "_" + self.mikrotik_arch +'_".$datetimestring."_".$time); ' \
                         '/system backup save name="$backupfilename";' \
                         ':delay 5s;' \
                         ' /export compact file="$backupfilename";' \
@@ -165,6 +175,9 @@ class Host:
         except Exception as err:
             self.err = err
             return False
+        finally:
+            ssh.close()
+        return True
 
     def check_host(self, line):
         if self.extract_host_data_from_line(line):
