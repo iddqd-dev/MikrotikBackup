@@ -39,7 +39,7 @@ class Host:
         if len(line) == 4:
             return True
         else:
-            print('no valid data in line')
+            print('Wrong data in line:', line)
             return False
 
     def extract_host_data_from_line(self, data):
@@ -50,16 +50,26 @@ class Host:
         return True
 
     def check_firmware_version(self):
+        lines = []
         try:
             cfg.ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
                             look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-            stdin_, stdout_, stderr_ = cfg.ssh.exec_command(":put [system routerboard get current-firmware ];"
+            stdin_, stdout_, stderr_ = cfg.ssh.exec_command(":put [/system identity get name];"
                                                             ":put [/system resource get architecture-name];"
-                                                            ":put [/system identity get name];")
+                                                            ":put [/system resource get version ];")
             stdout_.channel.recv_exit_status()
-            out = [line.split() for line in stdout_.read().splitlines()]
-            cfg.mikrotik_fw, cfg.mikrotik_arch,  cfg.mikrotik_name = str(out[0])[3:-2], str(out[1])[3:-2], str(out[2])[3:-2]
+            for line in stdout_.read().splitlines():
+                lines.append(line)
+            try:
+                cfg.mikrotik_name = str(lines[0])[2:-1]
+                cfg.mikrotik_arch = str(lines[1])[2:-1]
+                cfg.mikrotik_fw = str(lines[2])[2:-1]
+                if "bad', b'command', b'name', b'routerboard'," in cfg.mikrotik_fw:
+                    cfg.mikrotik_fw = "noRouterboardVersion"
+            except Exception as e:
+                cfg.mikrotik_fw = "'wrongData'"
+                print(e)
             print(cfg.mikrotik_fw, cfg.mikrotik_arch, cfg.mikrotik_name)
         except paramiko.AuthenticationException:
             print("Authentication failed when connecting to", self.ip)
@@ -84,9 +94,10 @@ class Host:
             ip_addr(self.ip)
             try:
                 ftp.cwd(cfg.mikrotik_name)
-            except ftplib.all_errors as err:
-                ftp.mkd(cfg.mikrotik_name)
-                print(err)
+            except ftplib.error_perm as err:
+                if "550" in str(err):
+                    ftp.mkd(cfg.mikrotik_name)
+                    print("Directory was not found and was created.")
         except ValueError:
             print(self.ip + " is not valid ip address")
             return False
@@ -120,7 +131,9 @@ class Host:
             cfg.ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
                             look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
+
             stdin_, stdout_, stderr_ = cfg.ssh.exec_command(backup_script)
+
             stdout_.channel.recv_exit_status()
             self.lines = stdout_.readlines()
             return True

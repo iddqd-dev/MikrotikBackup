@@ -14,11 +14,11 @@ class OutputList:
         io.write_data_to_file(data, flag='a')
 
     @staticmethod
-    def prepare_data_to_write(line, host):
+    def prepare_data_to_write(line, host_w):
         now = datetime.datetime.now()
         new_line = "Mikrotik " + line[2] + " " + str(now.strftime("%d-%m-%Y %H:%M:%S")) + '\n\n'
-        for line in host.lines:
+        for line in host_w.lines:
             if not line.isspace():
                 new_line += line.replace('\n', '')
-        new_line += splitter + " \n"
+        new_line += "\n" + splitter + " \n"
         return new_line

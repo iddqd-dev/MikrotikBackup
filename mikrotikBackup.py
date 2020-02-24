@@ -2,8 +2,11 @@
 import sys
 import datetime
 import argparse
+from timeit import default_timer as timer
 from Classes import InputOutput, InputList, Host, OutputList
+
 splitter = "#########################################################"
+start_time = timer()
 
 
 def cmd_arg_parser():
@@ -24,7 +27,12 @@ def main():
     host = Host.Host()
     io = InputOutput.InputOutput(input_f, output_f, input_list, output_list, host)
     input_list.handling_list(output_list, host, io)
-    print('Failed:', input_list.bad_host_count, 'hosts.', 'Passed backups:', output_list.count_of_good_hosts, '\n' + splitter + '\n')
+    print(splitter)
+    print("Failed:", input_list.bad_host_count, "backup's.", 'Completed:', output_list.count_of_good_hosts, "backups's.")
+    print(splitter)
+    full = timer() - start_time
+    print("Full backup in", round(full, 2), "second's.")
+    print(splitter)
 
 
 if __name__ == "__main__":

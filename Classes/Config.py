@@ -14,7 +14,7 @@ apt-get install python-paramiko
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ftp_addr = "192.168.1.1"
+ftp_addr = "localhost"
 ftp_user = "mikrotik"
 ftp_password = "mikrotik"
 mikrotik_arch = ""

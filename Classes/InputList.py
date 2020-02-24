@@ -1,4 +1,6 @@
 from datetime import datetime as time
+from timeit import default_timer as timer
+splitter = "#########################################################"
 
 
 class InputList:
@@ -9,13 +11,14 @@ class InputList:
 
     def hosts_counter(self, io):
         now = time.now()
+        print(splitter)
         print(str(now.strftime("%d-%m-%Y %H:%M:%S")) + '\nCounting host in file:', io.input_file)
-        for line in io.read_data_from_file(flag='r'):
+        for _ in io.read_data_from_file(flag='r'):
             self.host_count += 1
         return self.host_count
 
     def handling_list(self, output_list, host, io):
-        splitter = "#########################################################"
+
         print('Found', self.hosts_counter(io), 'hosts in list of file', io.input_file)
         for line in io.read_data_from_file(flag='r'):
             self.current_line_count += 1
@@ -25,15 +28,15 @@ class InputList:
                 host.extract_host_data_from_line(line)
                 host.check_firmware_version()
                 host.folder_generation()
+                start_time = timer()
                 connection = host.connect_to_host()
                 if connection:
+                    print("Backup time:", round((timer() - start_time), 2))
                     prepare_data = output_list.prepare_data_to_write(line, host)
-                    write_line = io.write_data_to_file(prepare_data, output_list, flag='a')
-                    if write_line:
-                        print('recorded line#', output_list.count_of_good_hosts, 'of', self.host_count)
+                    io.write_data_to_file(prepare_data, output_list, flag='a')
                 else:
                     self.bad_host_count += 1
-                    write_line = io.write_data_to_file("Connection error " + host.ip + ". See mikrotikBackup.log \n"
+                    io.write_data_to_file("Connection error " + host.ip + ". See mikrotikBackup.log \n"
                                                        + splitter + "\n", output_list, flag='a')
             else:
                 self.bad_host_count += 1
