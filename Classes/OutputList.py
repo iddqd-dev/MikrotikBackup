@@ -20,6 +20,5 @@ class OutputList:
         for line in host.lines:
             if not line.isspace():
                 new_line += line.replace('\n', '')
-        new_line += str(host.err) + "\n"
         new_line += splitter + " \n"
         return new_line

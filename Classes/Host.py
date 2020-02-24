@@ -2,6 +2,7 @@ import socket
 import sys
 import ftplib
 from ipaddress import IPv4Address as ip_addr
+from Classes import Config as cfg
 
 try:
     import paramiko
@@ -14,17 +15,12 @@ or
 apt-get install python-paramiko
 #########################################################""")
     sys.exit(1)
-from timeit import default_timer as timer
 
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+from timeit import default_timer as timer
 
 
 class Host:
     def __init__(self):
-        self.mikrotik_arch = ""
-        self.mikrotik_fw = ""
-        self.mikrotik_name = ""
         self.lines = None
         self.user = None
         self.password = None
@@ -32,7 +28,6 @@ class Host:
         self.port = None
         self.start_time = timer()
         self.host_access_time = 0
-        self.err = None
 
     def access_time(self):
         self.host_access_time = timer() - self.start_time
@@ -56,16 +51,16 @@ class Host:
 
     def check_firmware_version(self):
         try:
-            ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
-                        look_for_keys=False)
+            cfg.ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
+                            look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-            stdin_, stdout_, stderr_ = ssh.exec_command(":put [system routerboard get current-firmware ]; :put [/system resource get architecture-name]; :put [/system identity get name];")
+            stdin_, stdout_, stderr_ = cfg.ssh.exec_command(":put [system routerboard get current-firmware ];"
+                                                            ":put [/system resource get architecture-name];"
+                                                            ":put [/system identity get name];")
             stdout_.channel.recv_exit_status()
             out = [line.split() for line in stdout_.read().splitlines()]
-            self.mikrotik_fw = str(out[0])[3:-2]
-            self.mikrotik_arch = str(out[1])[3:-2]
-            self.mikrotik_name = str(out[2])[3:-2]
-            print(self.mikrotik_fw, self.mikrotik_arch, self.mikrotik_name)
+            cfg.mikrotik_fw, cfg.mikrotik_arch,  cfg.mikrotik_name = str(out[0])[3:-2], str(out[1])[3:-2], str(out[2])[3:-2]
+            print(cfg.mikrotik_fw, cfg.mikrotik_arch, cfg.mikrotik_name)
         except paramiko.AuthenticationException:
             print("Authentication failed when connecting to", self.ip)
             print('Check username and password.')
@@ -77,20 +72,20 @@ class Host:
             print(err)
             return False
         except Exception as err:
-            self.err = err
+            print(err)
             return False
         finally:
-            ssh.close()
+            cfg.ssh.close()
         return True
 
     def folder_generation(self):
-        ftp = ftplib.FTP("192.168.1.12", "mikrotik", "mikrotik")
+        ftp = ftplib.FTP(cfg.ftp_addr, cfg.ftp_user, cfg.ftp_password)
         try:
             ip_addr(self.ip)
             try:
-                ftp.cwd(self.mikrotik_name)
+                ftp.cwd(cfg.mikrotik_name)
             except ftplib.all_errors as err:
-                ftp.mkd(self.mikrotik_name)
+                ftp.mkd(cfg.mikrotik_name)
                 print(err)
         except ValueError:
             print(self.ip + " is not valid ip address")
@@ -98,26 +93,23 @@ class Host:
         return True
 
     def connect_to_host(self):
-        ftp = "192.168.1.12"
-        user = "mikrotik"
-        password = "mikrotik"
-        distance = str(self.mikrotik_name)
+        distance = str(cfg.mikrotik_name)
         backup_script = ':local time [/system clock get time];' \
                         ':local thisdate [/system clock get date]; ' \
                         ':local datetimestring ([:pick $thisdate 0 3] ."-" . [:pick $thisdate 4 6] ."-" . [:pick $thisdate 7 11]);' \
-                        ':local backupfilename ([/system identity get name]."_'+ self.mikrotik_fw + "_" + self.mikrotik_arch +'_".$datetimestring."_".$time); ' \
+                        ':local backupfilename ([/system identity get name]."_' + cfg.mikrotik_fw + "_" + cfg.mikrotik_arch + '_".$datetimestring."_".$time); ' \
                         '/system backup save name="$backupfilename";' \
-                        ':delay 5s;' \
-                        ' /export compact file="$backupfilename";' \
+                        ':delay 1s;' \
                         \
-                        '/tool fetch address="' + ftp + '" src-path="$backupfilename.backup" user=' \
-                        + user + ' password=' + password + ' port=21 upload=yes mode=ftp dst-path="' \
+                        '/export compact file="$backupfilename";' \
+                        '/tool fetch address="' + cfg.ftp_addr + '" src-path="$backupfilename.backup" user=' \
+                        + cfg.ftp_user + ' password=' + cfg.ftp_password + ' port=21 upload=yes mode=ftp dst-path="' \
                         + distance + '/$backupfilename.backup";' \
                         \
                         ':delay 1;' \
                         \
-                        '/tool fetch address="' + ftp + '" src-path="$backupfilename.rsc" user=' \
-                        + user + ' password=' + password + ' port=21 upload=yes mode=ftp dst-path="' \
+                        '/tool fetch address="' + cfg.ftp_addr + '" src-path="$backupfilename.rsc" user=' \
+                        + cfg.ftp_user + ' password=' + cfg.ftp_password + ' port=21 upload=yes mode=ftp dst-path="' \
                         + distance + '/$backupfilename.rsc";' \
                         \
                         ':delay 1;' \
@@ -125,10 +117,10 @@ class Host:
                         '/file remove "$backupfilename.rsc";' \
                         ':log'' info "Finished Backup Script.";'
         try:
-            ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
-                        look_for_keys=False)
+            cfg.ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
+                            look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-            stdin_, stdout_, stderr_ = ssh.exec_command(backup_script)
+            stdin_, stdout_, stderr_ = cfg.ssh.exec_command(backup_script)
             stdout_.channel.recv_exit_status()
             self.lines = stdout_.readlines()
             return True
@@ -143,10 +135,10 @@ class Host:
             print(err)
             return False
         except Exception as err:
-            self.err = err
+            print(err)
             return False
         finally:
-            ssh.close()
+            cfg.ssh.close()
 
     def check_host(self, line):
         if self.extract_host_data_from_line(line):
