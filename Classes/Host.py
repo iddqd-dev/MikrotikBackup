@@ -16,6 +16,9 @@ apt-get install python-paramiko
     sys.exit(1)
 from timeit import default_timer as timer
 
+ssh = paramiko.SSHClient()
+ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
 
 class Host:
     def __init__(self):
@@ -51,49 +54,18 @@ class Host:
         self.port = data[3]
         return True
 
-    def check_mikrotik_name(self):
-        try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
-                        look_for_keys=False)
-            print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-            stdin_, stdout_, stderr_ = ssh.exec_command(":put [/system identity get name];")
-            stdout_.channel.recv_exit_status()
-            self.mikrotik_name = str(stdout_.readlines())[2:-6]
-        except paramiko.AuthenticationException:
-            print("Authentication failed when connecting to", self.ip)
-            print('Check username and password.')
-            return False
-        except ConnectionError:
-            print("Could not connect to %s" % self.ip)
-            return False
-        except socket.timeout as err:
-            print(err)
-            return False
-        except Exception as err:
-            self.err = err
-            return False
-        finally:
-            ssh.close()
-        return True
-
     def check_firmware_version(self):
         try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
                         look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-            stdin_, stdout_, stderr_ = ssh.exec_command(":put [system routerboard get current-firmware ]; :put [/system resource get architecture-name]")
+            stdin_, stdout_, stderr_ = ssh.exec_command(":put [system routerboard get current-firmware ]; :put [/system resource get architecture-name]; :put [/system identity get name];")
             stdout_.channel.recv_exit_status()
-            #s = stdout_.read().splitlines()
-            s = [line.split() for line in stdout_.read().splitlines()]
-            self.mikrotik_fw = str(s[0])[2:-1]
-            self.mikrotik_arch = str(s[1])[2:-1]
-            print(self.mikrotik_fw, self.mikrotik_arch)
-            # self.mikrotik_fw = str(stdout_.readlines())[2:-6]
-            # print(self.mikrotik_fw)
+            out = [line.split() for line in stdout_.read().splitlines()]
+            self.mikrotik_fw = str(out[0])[3:-2]
+            self.mikrotik_arch = str(out[1])[3:-2]
+            self.mikrotik_name = str(out[2])[3:-2]
+            print(self.mikrotik_fw, self.mikrotik_arch, self.mikrotik_name)
         except paramiko.AuthenticationException:
             print("Authentication failed when connecting to", self.ip)
             print('Check username and password.')
@@ -153,8 +125,6 @@ class Host:
                         '/file remove "$backupfilename.rsc";' \
                         ':log'' info "Finished Backup Script.";'
         try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
                         look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
@@ -177,7 +147,6 @@ class Host:
             return False
         finally:
             ssh.close()
-        return True
 
     def check_host(self, line):
         if self.extract_host_data_from_line(line):

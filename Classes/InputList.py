@@ -1,3 +1,6 @@
+from datetime import datetime as time
+
+
 class InputList:
     def __init__(self):
         self.host_count = 0
@@ -5,7 +8,8 @@ class InputList:
         self.current_line_count = 0
 
     def hosts_counter(self, io):
-        print('Counting host in file:', io.input_file)
+        now = time.now()
+        print(str(now.strftime("%d-%m-%Y %H:%M:%S")) + '\nCounting host in file:', io.input_file)
         for line in io.read_data_from_file(flag='r'):
             self.host_count += 1
         return self.host_count

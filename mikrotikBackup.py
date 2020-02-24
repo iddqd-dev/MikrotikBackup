@@ -1,9 +1,9 @@
 #!/usr/bin/python
 import sys
-import ftplib
 import datetime
 import argparse
 from Classes import InputOutput, InputList, Host, OutputList
+splitter = "#########################################################"
 
 
 def cmd_arg_parser():
@@ -24,7 +24,7 @@ def main():
     host = Host.Host()
     io = InputOutput.InputOutput(input_f, output_f, input_list, output_list, host)
     input_list.handling_list(output_list, host, io)
-    print('Failed:', input_list.bad_host_count, 'hosts.', 'Passed backups:', output_list.count_of_good_hosts, '.')
+    print('Failed:', input_list.bad_host_count, 'hosts.', 'Passed backups:', output_list.count_of_good_hosts, '\n' + splitter + '\n')
 
 
 if __name__ == "__main__":
