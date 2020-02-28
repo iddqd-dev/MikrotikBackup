@@ -3,6 +3,7 @@ import sys
 import ftplib
 from ipaddress import IPv4Address as ip_addr
 from Classes import Config as cfg
+from Classes import Scripts as sc
 
 try:
     import paramiko
@@ -21,6 +22,7 @@ from timeit import default_timer as timer
 
 class Host:
     def __init__(self):
+        self.stdout_ = None
         self.lines = None
         self.user = None
         self.password = None
@@ -49,28 +51,14 @@ class Host:
         self.port = data[3]
         return True
 
-    def check_firmware_version(self):
-        lines = []
+    def ssh_connection(self, script):
         try:
             cfg.ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
                             look_for_keys=False)
             print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-            stdin_, stdout_, stderr_ = cfg.ssh.exec_command(":put [/system identity get name];"
-                                                            ":put [/system resource get architecture-name];"
-                                                            ":put [/system resource get version ];")
+            stdin_, stdout_, stderr_ = cfg.ssh.exec_command(script)
             stdout_.channel.recv_exit_status()
-            for line in stdout_.read().splitlines():
-                lines.append(line)
-            try:
-                cfg.mikrotik_name = str(lines[0])[2:-1]
-                cfg.mikrotik_arch = str(lines[1])[2:-1]
-                cfg.mikrotik_fw = str(lines[2])[2:-1]
-                if "bad', b'command', b'name', b'routerboard'," in cfg.mikrotik_fw:
-                    cfg.mikrotik_fw = "noRouterboardVersion"
-            except Exception as e:
-                cfg.mikrotik_fw = "'wrongData'"
-                print(e)
-            print(cfg.mikrotik_fw, cfg.mikrotik_arch, cfg.mikrotik_name)
+            self.stdout_ = stdout_
         except paramiko.AuthenticationException:
             print("Authentication failed when connecting to", self.ip)
             print('Check username and password.')
@@ -86,6 +74,25 @@ class Host:
             return False
         finally:
             cfg.ssh.close()
+
+    def check_firmware_version(self):
+        lines = []
+        try:
+            self.ssh_connection(sc.get_info)
+            for line in self.stdout_.read().splitlines():
+                lines.append(line)
+            try:
+                cfg.mikrotik_name = str(lines[0])[2:-1]
+                cfg.mikrotik_arch = str(lines[1])[2:-1]
+                cfg.mikrotik_fw = str(lines[2])[2:-1]
+                if "bad', b'command', b'name', b'routerboard'," in cfg.mikrotik_fw:
+                    cfg.mikrotik_fw = "noRouterboardVersion"
+            except Exception as e:
+                cfg.mikrotik_fw = "'wrongData'"
+                print(e)
+            print(cfg.mikrotik_fw, cfg.mikrotik_arch, cfg.mikrotik_name)
+        except socket.timeout:
+            print("sorry")
         return True
 
     def folder_generation(self):
@@ -104,38 +111,9 @@ class Host:
         return True
 
     def connect_to_host(self):
-        distance = str(cfg.mikrotik_name)
-        backup_script = ':local time [/system clock get time];' \
-                        ':local thisdate [/system clock get date]; ' \
-                        ':local datetimestring ([:pick $thisdate 0 3] ."-" . [:pick $thisdate 4 6] ."-" . [:pick $thisdate 7 11]);' \
-                        ':local backupfilename ([/system identity get name]."_' + cfg.mikrotik_fw + "_" + cfg.mikrotik_arch + '_".$datetimestring."_".$time); ' \
-                        '/system backup save name="$backupfilename";' \
-                        ':delay 1s;' \
-                        \
-                        '/export compact file="$backupfilename";' \
-                        '/tool fetch address="' + cfg.ftp_addr + '" src-path="$backupfilename.backup" user=' \
-                        + cfg.ftp_user + ' password=' + cfg.ftp_password + ' port=21 upload=yes mode=ftp dst-path="' \
-                        + distance + '/$backupfilename.backup";' \
-                        \
-                        ':delay 1;' \
-                        \
-                        '/tool fetch address="' + cfg.ftp_addr + '" src-path="$backupfilename.rsc" user=' \
-                        + cfg.ftp_user + ' password=' + cfg.ftp_password + ' port=21 upload=yes mode=ftp dst-path="' \
-                        + distance + '/$backupfilename.rsc";' \
-                        \
-                        ':delay 1;' \
-                        '/file remove "$backupfilename.backup";' \
-                        '/file remove "$backupfilename.rsc";' \
-                        ':log'' info "Finished Backup Script.";'
         try:
-            cfg.ssh.connect(hostname=self.ip, username=self.user, password=self.password, port=self.port, timeout=5,
-                            look_for_keys=False)
-            print('Connected to host', self.ip, '\nAccess time to host:', self.access_time(), 'seconds')
-
-            stdin_, stdout_, stderr_ = cfg.ssh.exec_command(backup_script)
-
-            stdout_.channel.recv_exit_status()
-            self.lines = stdout_.readlines()
+            self.ssh_connection(sc.backup_script)
+            self.lines = self.stdout_.readlines()
             return True
         except paramiko.AuthenticationException:
             print("Authentication failed when connecting to", self.ip)
